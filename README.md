@@ -1,5 +1,6 @@
 # Sign-Language-Translation
 [SCH 졸업논문] MediaPipe 모듈을 이용한 수어 인식 시스템 개발
+파일 용량 문제로 dataset 제거
 ![image](https://github.com/user-attachments/assets/c4393c25-d423-4171-ab5f-6e1aaf9638a5)
 ![image](https://github.com/user-attachments/assets/b4aaaec6-4554-4ddb-8bd2-36959729a2bf)
 ![image](https://github.com/user-attachments/assets/242eb6e2-835e-4a3a-9c10-ec69352c10f4)
