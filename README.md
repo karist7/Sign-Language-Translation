@@ -1,2 +1,16 @@
 # Sign-Language-Translation
 [SCH 졸업논문] MediaPipe 모듈을 이용한 수어 인식 시스템 개발
+![image](https://github.com/user-attachments/assets/dd4b2cd7-4cda-4550-b06d-d7b1db59d64a)
+![image](https://github.com/user-attachments/assets/b72f0d84-a581-4d2f-b7b3-59c5ccfa004d)
+![image](https://github.com/user-attachments/assets/630747dc-ec67-44b7-b277-3f0137641ea2)
+![image](https://github.com/user-attachments/assets/7729959f-f44c-4c23-a733-c389e33ca899)
+![image](https://github.com/user-attachments/assets/faca1c0a-230c-4fbf-bd0b-d868067d049a)
+![image](https://github.com/user-attachments/assets/ba503a8c-f59d-4ea0-b4c8-e5b9a23cd6fd)
+![image](https://github.com/user-attachments/assets/46901481-1ffe-4260-83da-42c5dcb40ddf)
+![image](https://github.com/user-attachments/assets/ad207103-a70a-4ea2-9aea-d0269c812ddf)
+![image](https://github.com/user-attachments/assets/3942a4a4-bfa4-4a70-970b-3af628daa7e8)
+![image](https://github.com/user-attachments/assets/3b4b3979-64c4-4285-8add-181385ca6fb7)
+![image](https://github.com/user-attachments/assets/0bfea615-b6a3-4728-b8c6-b66c3e9d5c72)
+![image](https://github.com/user-attachments/assets/14b3acbe-e7bb-40c4-a1a0-c36bf0e69ab9)
+![image](https://github.com/user-attachments/assets/c5a1cec8-0cc4-49a2-be4a-85cc0691ab40)
+![image](https://github.com/user-attachments/assets/bc3718d6-5f72-4095-8e9b-bddad279f281)
