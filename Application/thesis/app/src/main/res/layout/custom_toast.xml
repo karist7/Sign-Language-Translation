@@ -1,0 +1,14 @@
+<!-- res/layout/custom_toast.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/toast_background"
+    android:padding="16dp"
+    android:orientation="horizontal">
+
+<TextView
+android:id="@+id/toast_text"
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:textColor="#FFFFFF" /> <!-- 텍스트 색상 -->
+    </LinearLayout>
