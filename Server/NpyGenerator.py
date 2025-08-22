@@ -33,7 +33,7 @@ def mediapipe_detection(image, model):
     
     return image, results
 
-
+#아크코사인 각도 계산
 def calculate_angle(v1, v2):
     v1 = v1.reshape(1, 3)
     v2 = v2.reshape(1, 3)
@@ -109,7 +109,13 @@ def extract_keypoints(results):
     
     return keypoints
 
-
+def mediapipe_detection(image, model):
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image_rgb.flags.writeable = False
+    results = model.process(image_rgb)
+    image_out = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+    image_out.flags.writeable = True
+    return image_out, results
 
 
 

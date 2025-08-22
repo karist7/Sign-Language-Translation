@@ -16,38 +16,40 @@ mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
 
 def mediapipe_detection(image, model):
+    # BGR -> RGB, no-write, process, back to BGR
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image.flags.writeable = False
     results = model.process(image)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     image.flags.writeable = True
     return image, results
 
 def calculate_angle(v1, v2):
     v1 = v1.reshape(1, 3)
     v2 = v2.reshape(1, 3)
-    v1 = v1 / np.linalg.norm(v1, axis=1)[:, np.newaxis]
-    v2 = v2 / np.linalg.norm(v2, axis=1)[:, np.newaxis]
+    v1 = v1 / np.linalg.norm(v1, axis=1, keepdims=True)
+    v2 = v2 / np.linalg.norm(v2, axis=1, keepdims=True)
     jointangle = np.arccos(np.einsum('nt,nt->n', v1, v2))
     jointangle = np.degrees(jointangle)
     return jointangle
 
 def extract_keypoints(results):
+    # === 기존 feature 구성 유지 ===
     angles = []
     if results.pose_landmarks:
-        upper_body_pose = np.array([[res.x, res.y, res.z] for idx, res in enumerate(results.pose_landmarks.landmark) if 11 <= idx <= 16])
-        
+        upper_body_pose = np.array(
+            [[res.x, res.y, res.z] for idx, res in enumerate(results.pose_landmarks.landmark) if 11 <= idx <= 16]
+        )
+
         if upper_body_pose.shape[0] >= 2:
-            left_shoulder = upper_body_pose[0]
-            left_elbow = upper_body_pose[1]
-            left_wrist = upper_body_pose[2]
+            # 왼팔
+            left_shoulder, left_elbow, left_wrist = upper_body_pose[0], upper_body_pose[1], upper_body_pose[2]
             v1 = left_elbow - left_shoulder
             v2 = left_wrist - left_elbow
             angles.append(calculate_angle(v1, v2))
 
-            right_shoulder = upper_body_pose[3]
-            right_elbow = upper_body_pose[4]
-            right_wrist = upper_body_pose[5]
+            # 오른팔
+            right_shoulder, right_elbow, right_wrist = upper_body_pose[3], upper_body_pose[4], upper_body_pose[5]
             v1 = right_elbow - right_shoulder
             v2 = right_wrist - right_elbow
             angles.append(calculate_angle(v1, v2))
@@ -58,59 +60,58 @@ def extract_keypoints(results):
     else:
         vectors = np.zeros((12, 3))
 
+    # 손 각도
     lh_angles = []
     if results.left_hand_landmarks:
         lh = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).reshape((21, 3))
         for i in range(len(lh) - 2):
             v1 = lh[i + 1] - lh[i]
             v2 = lh[i + 2] - lh[i + 1]
-            angle = calculate_angle(v1, v2)
-            lh_angles.append(angle)
+            lh_angles.append(calculate_angle(v1, v2))
     else:
         lh_angles = np.zeros(19)
-        
+
     rh_angles = []
     if results.right_hand_landmarks:
         rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).reshape((21, 3))
         for i in range(len(rh) - 2):
             v1 = rh[i + 1] - rh[i]
             v2 = rh[i + 2] - rh[i + 1]
-            angle = calculate_angle(v1, v2)
-            rh_angles.append(angle)
+            rh_angles.append(calculate_angle(v1, v2))
     else:
         rh_angles = np.zeros(19)
 
     angles = np.array(angles).flatten()
     lh_angles = np.array(lh_angles).flatten()
     rh_angles = np.array(rh_angles).flatten()
-    
+
     keypoints = np.concatenate([vectors.flatten(), angles, lh_angles, rh_angles])
-    return keypoints
+    return keypoints  # shape: (D,)
 
-def normalize_keypoints(keypoints, image_width, image_height):
-    keypoints[:, 0] /= image_width
-    keypoints[:, 1] /= image_height
-    return keypoints
+# NOTE: normalize_keypoints는 호출하지 않습니다 (MediaPipe 좌표는 이미 정규화, 각도/벡터엔 무의미)
 
-# Function to predict using the TensorFlow Lite model
 def predict_with_tflite_model(keypoints_array):
-    # Get model input and output details
+    """
+    keypoints_array: (T, D)  # T는 모델 기대 길이(예: 225)에 맞춰 준비되어야 함
+    returns: predicted class index (int)
+    """
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
-    # Prepare input data
-    input_data = np.array(keypoints_array, dtype=np.float32)  # Ensure correct dtype
-    interpreter.set_tensor(input_details[0]['index'], input_data[np.newaxis, ...])
+    # 입력 텐서 shape 확인 (예: (1, 225, D))
+    # 필요 시 reshape
+    input_data = np.asarray(keypoints_array, dtype=np.float32)
+    if input_details[0]['shape'].ndim == 3:
+        # TFLite가 (1, T, D) 형태를 기대한다고 가정
+        interpreter.set_tensor(input_details[0]['index'], input_data[np.newaxis, ...])
+    else:
+        # 다른 형태라면 맞춰서 reshape 필요
+        interpreter.set_tensor(input_details[0]['index'], input_data[np.newaxis, ...])
 
-    # Run inference
     interpreter.invoke()
-
-    # Get the output tensor
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    predictions = output_data[0]  # This will be your prediction vector
-    print(predictions)
-    # Get the predicted class index
-    predicted_class_index = np.argmax(predictions)  # Safely get the predicted class index
+    output_data = interpreter.get_tensor(output_details[0]['index'])  # (1, C)
+    predictions = output_data[0]
+    predicted_class_index = int(np.argmax(predictions))
     return predicted_class_index
 
 app = Flask(__name__)
@@ -133,61 +134,73 @@ def file_down():
 
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-   
     file.save(file_path)
-    with mp_holistic.Holistic(static_image_mode=False, min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
+    labels = ['경찰', '구급대', '연락해주세요', '도와주세요', '빨리 와주세요']
+
+    # 슬라이딩 윈도우 설정
+    MICRO_WIN = 3   # 창 길이(프레임)
+    HOP = 3         # 매 프레임 갱신
+    MODEL_WIN = 225 # 모델이 기대하는 시퀀스 길이(패딩용)
+
+
+    with mp_holistic.Holistic(static_image_mode=False,
+                              min_detection_confidence=0.5,
+                              min_tracking_confidence=0.5) as holistic:
         cap = cv2.VideoCapture(file_path)
-
-        # Enable GPU (using cv2.cuda module)
-        if cv2.cuda.getCudaEnabledDeviceCount() > 0:
-
-            print("CUDA is enabled!")
-
-            # GPU에서 비디오 캡처
-            gpu_frame = cv2.cuda_GpuMat()
-
-        keypoints_list = []
-        frame_skip = 3  # Skip every 5th frame to speed up processing
+        keypoints_seq = []  # 전체 시퀀스(다운샘플 후)
+        frame_skip = 3
         frame_count = 0
 
         while cap.isOpened():
             ret, frame = cap.read()
-            if not ret:
-                break
-
-            # Skip frames to reduce processing load
             frame_count += 1
             if frame_count % frame_skip != 0:
-                continue
-
-            # GPU에서 작업을 하기 위해서는 이미지를 GpuMat으로 전환
-            if cv2.cuda.getCudaEnabledDeviceCount() > 0:
-                gpu_frame.upload(frame)
-                # GPU에서 작업을 할 수 있는 형태로 변환
-                image = gpu_frame.download()
-            else:
-                image = frame  # CPU에서 작업할 때는 일반 프레임 사용
-
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                continue  # 다운샘플
+            image = frame  
             image, results = mediapipe_detection(image, holistic)
-            if results.pose_landmarks or results.left_hand_landmarks or results.right_hand_landmarks:
-                array = extract_keypoints(results)
-                keypoints_list.append(array)
-           
+
+            if (results.pose_landmarks or
+                results.left_hand_landmarks or
+                results.right_hand_landmarks):
+                feat = extract_keypoints(results)  # (D,)
+                keypoints_seq.append(feat)
+
         cap.release()
         cv2.destroyAllWindows()
 
-        keypoints_array = np.array(keypoints_list)
-        keypoints_array = normalize_keypoints(keypoints_array, width, height)
-        keypoints_array = np.pad(keypoints_array, ((0, 225 - keypoints_array.shape[0]), (0, 0)), mode='constant', constant_values=-1)
+    # 추출 실패 처리
+    if not keypoints_seq:
+        return jsonify({'error': 'No keypoints extracted'}), 400
 
-        # Use TensorFlow Lite model for prediction
-        predicted_class_index = predict_with_tflite_model(keypoints_array)
-        
+    seq = np.asarray(keypoints_seq, dtype=np.float32)  # (T, D)
+    T, D = seq.shape[0], seq.shape[1]
+    # 슬라이딩 윈도우 설정
 
-        labels = ['경찰', '구급대', '연락해주세요', '도와주세요', '빨리 와주세요']
-        predicted_label = labels[predicted_class_index]
+
+    
+    # 3프레임 슬라이딩 윈도우로 창별 추론 → 다수결
+    preds = []
+    if T < MICRO_WIN:
+        # 프레임이 3보다 적으면, 있는 만큼으로 창을 만들고 MODEL_WIN으로 패딩 후 1회 추론
+        pad_len = MODEL_WIN - T
+        pad_block = np.full((max(0, pad_len), D), -1.0, dtype=np.float32) 
+        win_in = np.vstack([seq, pad_block]) if pad_len > 0 else seq
+        pred = predict_with_tflite_model(win_in)
+        preds.append(pred)
+    else:
+        for i in range(0, T - MICRO_WIN + 1, HOP):
+            win = seq[i:i+MICRO_WIN]  # (3, D)
+            # 모델 입력 길이(225)에 맞게 뒤쪽 -1 패딩
+            pad_len = MODEL_WIN - MICRO_WIN
+            pad_block = np.full((pad_len, D), -1.0, dtype=np.float32)
+            win_in = np.vstack([win, pad_block])  # (225, D)
+            pred = predict_with_tflite_model(win_in)
+            preds.append(pred)
+
+    # 최종 예측: 다수결
+    counts = np.bincount(preds, minlength=len(labels))
+    predicted_class_index = int(np.argmax(counts))
+    predicted_label = labels[predicted_class_index]
 
     return jsonify({'predict': predicted_label}), 200
 
